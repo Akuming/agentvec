@@ -32,6 +32,10 @@ crc32fast = { workspace = true }
 # Compile-time assertions
 static_assertions = "1.1"
 
+# Unix-specific
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
+
 [dev-dependencies]
 tempfile = { workspace = true }
 rand = { workspace = true }

@@ -23,7 +23,7 @@ jobs:
         uses: PyO3/maturin-action@v1
         with:
           target: ${{ matrix.target }}
-          args: --release --out dist -m agentvec-python/Cargo.toml
+          args: --release --out dist --find-interpreter -m agentvec-python/Cargo.toml
           manylinux: auto
       - name: Upload wheels
         uses: actions/upload-artifact@v4
@@ -33,30 +33,26 @@ jobs:
 
   windows:
     runs-on: windows-latest
-    strategy:
-      matrix:
-        target: [x64]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-          architecture: ${{ matrix.target }}
       - name: Build wheels
         uses: PyO3/maturin-action@v1
         with:
-          args: --release --out dist -m agentvec-python/Cargo.toml
+          args: --release --out dist --find-interpreter -m agentvec-python/Cargo.toml
       - name: Upload wheels
         uses: actions/upload-artifact@v4
         with:
-          name: wheels-windows-${{ matrix.target }}
+          name: wheels-windows-x64
           path: dist
 
   macos:
-    runs-on: macos-latest
+    runs-on: macos-14  # Apple Silicon runner
     strategy:
       matrix:
-        target: [x86_64, aarch64]
+        target: [x86_64-apple-darwin, aarch64-apple-darwin]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -66,7 +62,7 @@ jobs:
         uses: PyO3/maturin-action@v1
         with:
           target: ${{ matrix.target }}
-          args: --release --out dist -m agentvec-python/Cargo.toml
+          args: --release --out dist --find-interpreter -m agentvec-python/Cargo.toml
       - name: Upload wheels
         uses: actions/upload-artifact@v4
         with:
