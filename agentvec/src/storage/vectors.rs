@@ -192,7 +192,7 @@ impl VectorStorage {
     /// Validate dimensions are within acceptable range.
     fn validate_dimensions(dimensions: usize) -> Result<()> {
         if dimensions == 0 {
-            return Err(AgentVecError::InvalidDimensions(
+            return Err(AgentVecError::InvalidInput(
                 "Dimensions must be greater than 0".into(),
             ));
         }
@@ -654,7 +654,7 @@ mod tests {
         let path = dir.path().join("vectors.bin");
 
         let result = VectorStorage::create(&path, 0);
-        assert!(matches!(result, Err(AgentVecError::InvalidDimensions(_))));
+        assert!(matches!(result, Err(AgentVecError::InvalidInput(_))));
 
         let result = VectorStorage::create(&path, 100_000);
         assert!(matches!(result, Err(AgentVecError::DimensionsTooLarge { .. })));

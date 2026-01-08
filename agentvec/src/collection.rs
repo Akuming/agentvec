@@ -489,14 +489,14 @@ impl Collection {
         ttls: Option<&[Option<u64>]>,
     ) -> Result<Vec<String>> {
         if vectors.len() != metadatas.len() {
-            return Err(AgentVecError::InvalidDimensions(
+            return Err(AgentVecError::InvalidInput(
                 "vectors and metadatas must have same length".into(),
             ));
         }
 
         if let Some(ids) = ids {
             if ids.len() != vectors.len() {
-                return Err(AgentVecError::InvalidDimensions(
+                return Err(AgentVecError::InvalidInput(
                     "ids must have same length as vectors".into(),
                 ));
             }
@@ -504,7 +504,7 @@ impl Collection {
 
         if let Some(ttls) = ttls {
             if ttls.len() != vectors.len() {
-                return Err(AgentVecError::InvalidDimensions(
+                return Err(AgentVecError::InvalidInput(
                     "ttls must have same length as vectors".into(),
                 ));
             }
@@ -1027,6 +1027,201 @@ impl Collection {
     /// Check if the HNSW index needs to be rebuilt.
     pub fn hnsw_is_dirty(&self) -> bool {
         self.hnsw_dirty.load(Ordering::SeqCst)
+    }
+
+    // ========== Export/Import ==========
+
+    /// Export the collection to a file.
+    ///
+    /// Creates an NDJSON file with all records including vectors and metadata.
+    /// The export includes both committed and pending (unflushed) records.
+    ///
+    /// # Arguments
+    ///
+    /// * `path` - Output file path
+    ///
+    /// # Returns
+    ///
+    /// The number of records exported.
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// collection.export_to_file("backup.ndjson")?;
+    /// ```
+    pub fn export_to_file<P: AsRef<Path>>(&self, path: P) -> Result<usize> {
+        use crate::export::{ExportRecord, ExportWriter};
+        use std::fs::File;
+
+        // Flush pending writes first to ensure consistent export
+        self.flush_pending()?;
+
+        // Get total record count
+        let record_count = self.len()?;
+
+        let file = File::create(path.as_ref())
+            .map_err(|e| AgentVecError::Io(e))?;
+
+        let metric_str = match self.config.metric {
+            Metric::Cosine => "cosine",
+            Metric::Dot => "dot",
+            Metric::L2 => "l2",
+        };
+
+        let mut writer = ExportWriter::new(
+            file,
+            &self.config.name,
+            self.config.dimensions,
+            metric_str,
+            record_count,
+        )?;
+
+        let vectors = self.vectors.read();
+        let txn = self.metadata.begin_read()?;
+
+        self.metadata.iter_records(&txn, |record| {
+            // Skip non-active records
+            if !record.is_active() {
+                return Ok(true);
+            }
+
+            // Read the vector
+            let vector_data = vectors.read_slot_ref(record.slot_offset)?;
+            let vector: Vec<f32> = vector_data.to_vec();
+
+            // Calculate TTL from expiry time
+            let ttl = record.expires_at.map(|exp| {
+                let now = SystemTime::now()
+                    .duration_since(UNIX_EPOCH)
+                    .map(|d| d.as_secs())
+                    .unwrap_or(0);
+                if exp > now { exp - now } else { 0 }
+            });
+
+            let export_record = ExportRecord {
+                id: record.id.clone(),
+                vector,
+                metadata: record.metadata(),
+                created_at: Some(record.created_at),
+                ttl,
+            };
+
+            writer.write_record(&export_record)?;
+            Ok(true)
+        })?;
+
+        writer.finish()
+    }
+
+    /// Import records from a file.
+    ///
+    /// Reads an NDJSON file and imports all records. Validates that the file
+    /// dimensions match the collection dimensions.
+    ///
+    /// # Arguments
+    ///
+    /// * `path` - Input file path
+    ///
+    /// # Returns
+    ///
+    /// Import statistics.
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// let stats = collection.import_from_file("backup.ndjson")?;
+    /// println!("Imported {} records", stats.imported);
+    /// ```
+    pub fn import_from_file<P: AsRef<Path>>(&self, path: P) -> Result<crate::export::ImportStats> {
+        use crate::export::{ExportReader, ImportStats};
+        use std::fs::File;
+        use std::io::BufReader;
+        use std::time::Instant;
+
+        let start = Instant::now();
+
+        let file = File::open(path.as_ref())
+            .map_err(|e| AgentVecError::Io(e))?;
+
+        let reader = BufReader::new(file);
+        let mut export_reader = ExportReader::new(reader)?;
+
+        let header = export_reader.header();
+
+        // Validate dimensions
+        if header.dimensions != self.config.dimensions {
+            return Err(AgentVecError::InvalidDimensions {
+                expected: self.config.dimensions,
+                got: header.dimensions,
+            });
+        }
+
+        let mut stats = ImportStats::default();
+
+        while let Some(record) = export_reader.read_record()? {
+            // Validate vector dimensions
+            if record.vector.len() != self.config.dimensions {
+                stats.failed += 1;
+                continue;
+            }
+
+            // Import using upsert (handles duplicates gracefully)
+            match self.upsert(&record.id, &record.vector, record.metadata, record.ttl) {
+                Ok(_) => stats.imported += 1,
+                Err(_) => stats.failed += 1,
+            }
+        }
+
+        // Flush pending writes
+        self.flush_pending()?;
+
+        stats.duration_ms = start.elapsed().as_millis() as u64;
+
+        Ok(stats)
+    }
+
+    /// Export collection records as an iterator.
+    ///
+    /// This is useful for streaming exports or custom export formats.
+    /// Yields `ExportRecord` for each active record.
+    pub fn export_records(&self) -> Result<Vec<crate::export::ExportRecord>> {
+        use crate::export::ExportRecord;
+
+        // Flush pending writes first
+        self.flush_pending()?;
+
+        let mut records = Vec::new();
+        let vectors = self.vectors.read();
+        let txn = self.metadata.begin_read()?;
+
+        self.metadata.iter_records(&txn, |record| {
+            if !record.is_active() {
+                return Ok(true);
+            }
+
+            let vector_data = vectors.read_slot_ref(record.slot_offset)?;
+            let vector: Vec<f32> = vector_data.to_vec();
+
+            let ttl = record.expires_at.map(|exp| {
+                let now = SystemTime::now()
+                    .duration_since(UNIX_EPOCH)
+                    .map(|d| d.as_secs())
+                    .unwrap_or(0);
+                if exp > now { exp - now } else { 0 }
+            });
+
+            records.push(ExportRecord {
+                id: record.id.clone(),
+                vector,
+                metadata: record.metadata(),
+                created_at: Some(record.created_at),
+                ttl,
+            });
+
+            Ok(true)
+        })?;
+
+        Ok(records)
     }
 }
 

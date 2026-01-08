@@ -35,9 +35,26 @@ pub enum AgentVecError {
         got: usize,
     },
 
-    /// Invalid dimension specification.
-    #[error("Invalid dimensions: {0}")]
-    InvalidDimensions(String),
+    /// Invalid dimension specification (count mismatch).
+    #[error("Invalid dimensions: expected {expected}, got {got}")]
+    InvalidDimensions {
+        /// Expected dimensions.
+        expected: usize,
+        /// Actual dimensions.
+        got: usize,
+    },
+
+    /// Invalid input parameter.
+    #[error("Invalid input: {0}")]
+    InvalidInput(String),
+
+    /// Invalid file format.
+    #[error("Invalid format: {0}")]
+    InvalidFormat(String),
+
+    /// Deserialization error.
+    #[error("Deserialization error: {0}")]
+    Deserialization(String),
 
     /// Record not found by ID.
     #[error("Record not found: {0}")]
@@ -156,7 +173,7 @@ mod tests {
             AgentVecError::Database("test".into()),
             AgentVecError::DimensionMismatch { expected: 1, got: 2 },
             AgentVecError::DimensionsTooLarge { max: 1, got: 2 },
-            AgentVecError::InvalidDimensions("test".into()),
+            AgentVecError::InvalidDimensions { expected: 384, got: 512 },
             AgentVecError::NotFound("test".into()),
             AgentVecError::CollectionNotFound("test".into()),
             AgentVecError::CollectionExists("test".into()),
@@ -164,6 +181,9 @@ mod tests {
             AgentVecError::Serialization("test".into()),
             AgentVecError::Transaction("test".into()),
             AgentVecError::Lock("test".into()),
+            AgentVecError::InvalidFormat("test".into()),
+            AgentVecError::Deserialization("test".into()),
+            AgentVecError::InvalidInput("test".into()),
         ];
 
         for err in errors {

@@ -4,7 +4,7 @@ build-backend = "maturin"
 
 [project]
 name = "agentvec"
-version = "0.1.0"
+version = "0.2.0"
 description = "A lightweight, serverless vector database for AI agent memory"
 license = { text = "MIT OR Apache-2.0" }
 requires-python = ">=3.8"

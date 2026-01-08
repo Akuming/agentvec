@@ -173,6 +173,50 @@ impl From<&RecoveryStats> for PyRecoveryStats {
     }
 }
 
+// ============ PyImportStats ============
+
+/// Statistics from an import operation.
+#[pyclass(name = "ImportStats")]
+#[derive(Clone)]
+pub struct PyImportStats {
+    /// Number of records successfully imported.
+    #[pyo3(get)]
+    pub imported: usize,
+
+    /// Number of records skipped.
+    #[pyo3(get)]
+    pub skipped: usize,
+
+    /// Number of records that failed to import.
+    #[pyo3(get)]
+    pub failed: usize,
+
+    /// Duration in milliseconds.
+    #[pyo3(get)]
+    pub duration_ms: u64,
+}
+
+#[pymethods]
+impl PyImportStats {
+    fn __repr__(&self) -> String {
+        format!(
+            "ImportStats(imported={}, skipped={}, failed={}, duration_ms={})",
+            self.imported, self.skipped, self.failed, self.duration_ms
+        )
+    }
+}
+
+impl From<::agentvec::ImportStats> for PyImportStats {
+    fn from(s: ::agentvec::ImportStats) -> Self {
+        Self {
+            imported: s.imported,
+            skipped: s.skipped,
+            failed: s.failed,
+            duration_ms: s.duration_ms,
+        }
+    }
+}
+
 // ============ PyCollection ============
 
 /// A collection of vectors with associated metadata.
@@ -392,6 +436,38 @@ impl PyCollection {
         }
     }
 
+    /// Export the collection to a file.
+    ///
+    /// Creates an NDJSON file with all records including vectors and metadata.
+    ///
+    /// Args:
+    ///     path: Output file path.
+    ///
+    /// Returns:
+    ///     Number of records exported.
+    fn export_to_file(&self, path: &str) -> PyResult<usize> {
+        self.inner
+            .export_to_file(path)
+            .map_err(|e| PyIOError::new_err(e.to_string()))
+    }
+
+    /// Import records from a file.
+    ///
+    /// Reads an NDJSON file and imports all records. The file must have
+    /// matching dimensions to this collection.
+    ///
+    /// Args:
+    ///     path: Input file path.
+    ///
+    /// Returns:
+    ///     ImportStats with details about the import.
+    fn import_from_file(&self, path: &str) -> PyResult<PyImportStats> {
+        self.inner
+            .import_from_file(path)
+            .map(PyImportStats::from)
+            .map_err(|e| PyIOError::new_err(e.to_string()))
+    }
+
     fn __repr__(&self) -> String {
         format!(
             "Collection(name='{}', dimensions={}, metric='{}')",
@@ -516,5 +592,6 @@ fn agentvec(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PySearchResult>()?;
     m.add_class::<PyCompactStats>()?;
     m.add_class::<PyRecoveryStats>()?;
+    m.add_class::<PyImportStats>()?;
     Ok(())
 }
