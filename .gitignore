@@ -1,0 +1,87 @@
+# Rust
+/target/
+**/*.rs.bk
+Cargo.lock
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+venv/
+ENV/
+env/
+*.egg-info/
+*.egg
+dist/
+build/
+wheels/
+*.whl
+
+# maturin
+agentvec-python/target/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Editor
+*.sublime-project
+*.sublime-workspace
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.nox/
+
+# Temporary files
+*.tmp
+*.temp
+*.log
+*.bak
+
+# Database files (for testing)
+*.avdb/
+test_*.avdb/
+agent_memory/
+memory.avdb/
+
+# Benchmark output
+*.bench
+flamegraph.svg
+perf.data*
+
+# Documentation build
+/docs/_build/
+
+# OS
+Thumbs.db
+.DS_Store
+
+# Secrets (never commit)
+.env
+.env.local
+*.pem
+*.key
+credentials.json
+
+# Claude Code
+.claude/
+
+# Development docs (not for public repo)
+AGENTVEC_PRD*.md
+agentvec-prd*.docx
+BUILD_ENVIRONMENT_SETUP.md
+DIAGNOSE_BUILD.md
+TASKLIST.md
+
+# Test scripts
+test_python.py

@@ -1,0 +1,53 @@
+[package]
+name = "agentvec"
+description = "A lightweight, serverless vector database for AI agent memory"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[dependencies]
+# Storage
+redb = { workspace = true }
+memmap2 = { workspace = true }
+
+# Serialization
+bincode = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+# Error handling
+thiserror = { workspace = true }
+
+# Utilities
+uuid = { workspace = true }
+parking_lot = { workspace = true }
+rayon = { workspace = true }
+rand = { workspace = true }
+crc32fast = { workspace = true }
+
+# Compile-time assertions
+static_assertions = "1.1"
+
+[dev-dependencies]
+tempfile = { workspace = true }
+rand = { workspace = true }
+criterion = { workspace = true }
+
+[[bench]]
+name = "distance"
+harness = false
+
+[[bench]]
+name = "collection"
+harness = false
+
+[features]
+default = []
+
+[lib]
+name = "agentvec"
+path = "src/lib.rs"
