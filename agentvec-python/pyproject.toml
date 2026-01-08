@@ -27,7 +27,9 @@ classifiers = [
 keywords = ["vector", "database", "embedding", "ai", "agent", "memory"]
 
 [project.urls]
-Repository = "https://github.com/user/agentvec"
+Repository = "https://github.com/Akuming/agentvec"
+Documentation = "https://github.com/Akuming/agentvec#readme"
+Issues = "https://github.com/Akuming/agentvec/issues"
 
 [tool.maturin]
 features = ["pyo3/extension-module"]
