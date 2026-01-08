@@ -282,7 +282,7 @@ impl AgentVec {
     /// Validate dimensions.
     fn validate_dimensions(dim: usize) -> Result<()> {
         if dim == 0 {
-            return Err(AgentVecError::InvalidDimensions(
+            return Err(AgentVecError::InvalidInput(
                 "Dimensions must be greater than 0".into(),
             ));
         }
@@ -480,7 +480,7 @@ mod tests {
 
         // Zero dimensions
         let result = db.collection("test", 0, Metric::Cosine);
-        assert!(matches!(result, Err(AgentVecError::InvalidDimensions(_))));
+        assert!(matches!(result, Err(AgentVecError::InvalidInput(_))));
 
         // Too large
         let result = db.collection("test", 100_000, Metric::Cosine);

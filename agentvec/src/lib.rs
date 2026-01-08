@@ -46,6 +46,7 @@ mod error;
 mod collection;
 mod filter;
 mod recovery;
+mod export;
 
 pub mod storage;
 pub mod search;
@@ -59,3 +60,4 @@ pub use filter::Filter;
 pub use search::SearchResult;
 pub use search::HnswConfig;
 pub use recovery::RecoveryStats;
+pub use export::{ExportHeader, ExportRecord, ImportStats};
