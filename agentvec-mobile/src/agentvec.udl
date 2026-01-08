@@ -1,0 +1,150 @@
+// UniFFI interface definition for AgentVec mobile bindings
+namespace agentvec {};
+
+// Configuration for distance metrics
+enum Metric {
+    "Cosine",
+    "Dot",
+    "L2",
+};
+
+// Search result from a vector query
+dictionary SearchResult {
+    string id;
+    float score;
+    string metadata_json;
+};
+
+// A record with its vector data included
+dictionary VectorRecord {
+    string id;
+    sequence<f32> vector;
+    string metadata_json;
+};
+
+// Statistics from a compaction operation
+dictionary CompactStats {
+    u64 expired_removed;
+    u64 tombstones_removed;
+    u64 bytes_freed;
+    u64 duration_ms;
+};
+
+// Statistics from an import operation
+dictionary ImportStats {
+    u64 imported;
+    u64 skipped;
+    u64 failed;
+    u64 duration_ms;
+};
+
+// Recovery statistics from database open
+dictionary RecoveryStats {
+    u64 promoted;
+    u64 rolled_back;
+    u64 tombstones;
+};
+
+// Main database interface
+interface AgentVec {
+    // Open or create a database at the given path
+    [Throws=AgentVecError, Name=open]
+    constructor(string path);
+
+    // Get or create a collection
+    [Throws=AgentVecError]
+    Collection collection(string name, u32 dimensions, Metric metric);
+
+    // Get an existing collection
+    [Throws=AgentVecError]
+    Collection get_collection(string name);
+
+    // List all collection names
+    [Throws=AgentVecError]
+    sequence<string> collections();
+
+    // Delete a collection
+    [Throws=AgentVecError]
+    void drop_collection(string name);
+
+    // Flush all pending writes
+    [Throws=AgentVecError]
+    void sync();
+
+    // Get recovery statistics
+    RecoveryStats recovery_stats();
+};
+
+// Collection of vectors
+interface Collection {
+    // Add a vector to the collection
+    [Throws=AgentVecError]
+    string add(sequence<f32> vector, string metadata_json, string? id, u64? ttl);
+
+    // Insert or update a vector
+    [Throws=AgentVecError]
+    void upsert(string id, sequence<f32> vector, string metadata_json, u64? ttl);
+
+    // Search for nearest neighbors
+    [Throws=AgentVecError]
+    sequence<SearchResult> search(sequence<f32> vector, u32 k, string? where_json);
+
+    // Get a record by ID
+    [Throws=AgentVecError]
+    SearchResult? get(string id);
+
+    // Get a record with its vector data by ID
+    [Throws=AgentVecError]
+    VectorRecord? get_with_vector(string id);
+
+    // Delete a record by ID
+    [Throws=AgentVecError]
+    boolean delete(string id);
+
+    // Compact the collection
+    [Throws=AgentVecError]
+    CompactStats compact();
+
+    // Get the number of records
+    [Throws=AgentVecError]
+    u64 len();
+
+    // Check if the collection is empty
+    [Throws=AgentVecError]
+    boolean is_empty();
+
+    // Preload vectors into memory
+    [Throws=AgentVecError]
+    void preload();
+
+    // Flush pending writes
+    [Throws=AgentVecError]
+    void sync();
+
+    // Export to file
+    [Throws=AgentVecError]
+    u64 export_to_file(string path);
+
+    // Import from file
+    [Throws=AgentVecError]
+    ImportStats import_from_file(string path);
+
+    // Get collection properties
+    u32 dimensions();
+    string name();
+    Metric metric();
+    u64 vectors_size_bytes();
+};
+
+// Error types - the error message is available via the exception's message/description
+[Error]
+enum AgentVecError {
+    "IoError",
+    "DatabaseError",
+    "DimensionMismatch",
+    "InvalidInput",
+    "NotFound",
+    "CollectionNotFound",
+    "Serialization",
+    "Other",
+};

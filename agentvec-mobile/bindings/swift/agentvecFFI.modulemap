@@ -1,0 +1,4 @@
+module agentvecFFI {
+    header "agentvecFFI.h"
+    export *
+}

@@ -1,0 +1,37 @@
+[package]
+name = "agentvec-mobile"
+description = "Mobile bindings (iOS/Android) for AgentVec vector database"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[lib]
+crate-type = ["lib", "cdylib", "staticlib"]
+name = "agentvec_mobile"
+
+[dependencies]
+# Core library
+agentvec = { path = "../agentvec" }
+
+# UniFFI for mobile bindings
+uniffi = "0.28"
+
+# Serialization (for metadata handling)
+serde_json = { workspace = true }
+
+# Error handling
+thiserror = { workspace = true }
+
+[build-dependencies]
+uniffi = { version = "0.28", features = ["build"] }
+
+[[bin]]
+name = "uniffi-bindgen"
+path = "src/uniffi-bindgen.rs"
+required-features = ["bindgen"]
+
+[features]
+default = []
+bindgen = ["uniffi/cli"]

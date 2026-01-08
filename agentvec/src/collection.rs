@@ -808,6 +808,60 @@ impl Collection {
         )))
     }
 
+    /// Get a record with its vector data by ID.
+    ///
+    /// This is useful when you need to retrieve the actual vector values,
+    /// not just metadata.
+    ///
+    /// # Arguments
+    ///
+    /// * `id` - The record ID
+    ///
+    /// # Returns
+    ///
+    /// The full record including vector if found and not expired, None otherwise.
+    pub fn get_with_vector(&self, id: &str) -> Result<Option<crate::search::FullRecord>> {
+        // Check pending records first (unflushed writes)
+        {
+            let pending = self.pending.lock();
+            for pw in pending.iter() {
+                if pw.record.id == id && pw.record.is_active() {
+                    return Ok(Some(crate::search::FullRecord::new(
+                        &pw.record.id,
+                        pw.vector.clone(),
+                        pw.record.metadata(),
+                    )));
+                }
+            }
+        }
+
+        // Check committed records
+        let txn = self.metadata.begin_read()?;
+        let record = match self.metadata.get_record(&txn, id)? {
+            Some(r) => r,
+            None => return Ok(None),
+        };
+
+        // Check if expired or not active
+        if !record.is_active() {
+            return Ok(None);
+        }
+
+        // Read the vector from storage
+        let vectors = self.vectors.read();
+        if vectors.is_tombstone(record.slot_offset)? {
+            return Ok(None);
+        }
+
+        let vector = vectors.read_slot(record.slot_offset)?;
+
+        Ok(Some(crate::search::FullRecord::new(
+            &record.id,
+            vector,
+            record.metadata(),
+        )))
+    }
+
     /// Delete a record by ID.
     ///
     /// This handles both pending (unflushed) and committed records.
