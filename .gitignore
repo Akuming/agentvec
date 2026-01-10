@@ -47,6 +47,7 @@ htmlcov/
 *.temp
 *.log
 *.bak
+nul
 
 # Database files (for testing)
 *.avdb/
@@ -82,6 +83,8 @@ agentvec-prd*.docx
 BUILD_ENVIRONMENT_SETUP.md
 DIAGNOSE_BUILD.md
 TASKLIST.md
+PUBLISHING_TO_CRATES.md
+AGENTVEC_TECHNICAL_SUMMARY.md
 
 # Test scripts
 test_python.py

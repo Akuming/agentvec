@@ -15,9 +15,7 @@
 //! println!("Imported {} records", stats.imported);
 //! ```
 
-use std::fs::File;
-use std::io::{BufRead, BufReader, BufWriter, Write};
-use std::path::Path;
+use std::io::{BufRead, BufWriter, Write};
 
 use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
@@ -197,53 +195,6 @@ impl<R: BufRead> ExportReader<R> {
     }
 }
 
-/// Export a collection to a file.
-pub fn export_to_file<P: AsRef<Path>>(
-    path: P,
-    collection_name: &str,
-    dimensions: usize,
-    metric: &str,
-    records: impl Iterator<Item = ExportRecord>,
-    record_count: usize,
-) -> Result<usize> {
-    let file = File::create(path.as_ref())
-        .map_err(|e| Error::Io(e))?;
-
-    let mut writer = ExportWriter::new(
-        file,
-        collection_name,
-        dimensions,
-        metric,
-        record_count,
-    )?;
-
-    for record in records {
-        writer.write_record(&record)?;
-    }
-
-    writer.finish()
-}
-
-/// Import records from a file.
-pub fn import_from_file<P: AsRef<Path>>(
-    path: P,
-) -> Result<(ExportHeader, Vec<ExportRecord>)> {
-    let file = File::open(path.as_ref())
-        .map_err(|e| Error::Io(e))?;
-
-    let reader = BufReader::new(file);
-    let mut export_reader = ExportReader::new(reader)?;
-
-    let header = export_reader.header().clone();
-    let mut records = Vec::with_capacity(header.record_count);
-
-    while let Some(record) = export_reader.read_record()? {
-        records.push(record);
-    }
-
-    Ok((header, records))
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -368,6 +319,9 @@ mod tests {
 
     #[test]
     fn test_file_roundtrip() {
+        use std::fs::File;
+        use std::io::BufReader;
+
         let tmpdir = tempfile::TempDir::new().unwrap();
         let path = tmpdir.path().join("export.ndjson");
 
@@ -388,23 +342,35 @@ mod tests {
             },
         ];
 
-        // Export
-        let exported = export_to_file(
-            &path,
-            "test",
-            2,
-            "cosine",
-            records.into_iter(),
-            2,
-        ).unwrap();
-        assert_eq!(exported, 2);
+        // Export using ExportWriter
+        {
+            let file = File::create(&path).unwrap();
+            let mut writer = ExportWriter::new(file, "test", 2, "cosine", 2).unwrap();
+            for record in &records {
+                writer.write_record(record).unwrap();
+            }
+            let exported = writer.finish().unwrap();
+            assert_eq!(exported, 2);
+        }
 
-        // Import
-        let (header, imported) = import_from_file(&path).unwrap();
-        assert_eq!(header.collection, "test");
-        assert_eq!(header.dimensions, 2);
-        assert_eq!(imported.len(), 2);
-        assert_eq!(imported[0].id, "a");
-        assert_eq!(imported[1].id, "b");
+        // Import using ExportReader
+        {
+            let file = File::open(&path).unwrap();
+            let reader = BufReader::new(file);
+            let mut export_reader = ExportReader::new(reader).unwrap();
+
+            let header = export_reader.header().clone();
+            assert_eq!(header.collection, "test");
+            assert_eq!(header.dimensions, 2);
+
+            let mut imported = Vec::new();
+            while let Some(record) = export_reader.read_record().unwrap() {
+                imported.push(record);
+            }
+
+            assert_eq!(imported.len(), 2);
+            assert_eq!(imported[0].id, "a");
+            assert_eq!(imported[1].id, "b");
+        }
     }
 }

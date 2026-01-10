@@ -99,6 +99,10 @@ pub struct ParallelHnswBuilder {
     higher_is_better: bool,
 }
 
+// Allow dead code for alternative implementation strategies.
+// These methods represent different optimization approaches (f32, quantized, hybrid)
+// that are kept for benchmarking and future experimentation.
+#[allow(dead_code)]
 impl ParallelHnswBuilder {
     pub fn new(config: HnswConfig, metric: Metric) -> Self {
         let higher_is_better = metric.higher_is_better();

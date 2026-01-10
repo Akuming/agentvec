@@ -356,7 +356,7 @@ result.metadata  # JSON metadata dict
 Filter search results by metadata fields:
 
 ```python
-# Single condition
+# Equality
 results = col.search(vec, k=10, where_={"user": "alice"})
 
 # Multiple conditions (AND)
@@ -364,14 +364,42 @@ results = col.search(vec, k=10, where_={
     "user": "alice",
     "type": "conversation"
 })
+
+# Comparison operators
+results = col.search(vec, k=10, where_={
+    "score": {"$gt": 0.8},           # Greater than
+    "count": {"$lte": 100},          # Less than or equal
+})
+
+# Set operators
+results = col.search(vec, k=10, where_={
+    "status": {"$in": ["active", "pending"]},   # In set
+    "tag": {"$nin": ["spam", "deleted"]},       # Not in set
+})
+
+# Not equal
+results = col.search(vec, k=10, where_={
+    "type": {"$ne": "system"}
+})
 ```
 
-**Current Limitations:**
-- Equality matching only (no `$gt`, `$lt`, `$in`)
-- AND semantics only (no OR)
-- Post-filter with 10x over-fetch heuristic
+**Supported Operators:**
+| Operator | Description | Example |
+|----------|-------------|---------|
+| (none) | Equality | `{"user": "alice"}` |
+| `$eq` | Explicit equality | `{"user": {"$eq": "alice"}}` |
+| `$ne` | Not equal | `{"type": {"$ne": "system"}}` |
+| `$gt` | Greater than | `{"score": {"$gt": 0.5}}` |
+| `$gte` | Greater than or equal | `{"count": {"$gte": 10}}` |
+| `$lt` | Less than | `{"age": {"$lt": 30}}` |
+| `$lte` | Less than or equal | `{"priority": {"$lte": 5}}` |
+| `$in` | In set | `{"status": {"$in": ["a", "b"]}}` |
+| `$nin` | Not in set | `{"tag": {"$nin": ["x", "y"]}}` |
 
-For highly selective filters, increase `k` or reduce filter specificity.
+**Notes:**
+- Multiple conditions use AND semantics
+- Post-filter with 10x over-fetch heuristic
+- For highly selective filters, increase `k`
 
 ---
 
@@ -403,7 +431,7 @@ col.preload()
 
 1. **Distributed Search** - Single machine only
 2. **Multi-Process Access** - One process at a time
-3. **Complex Filters** - No range queries, no OR conditions
+3. **OR Filters** - Only AND semantics (no OR conditions)
 4. **Billion-Scale** - Optimized for up to ~1M vectors
 5. **Real-Time Sync** - No built-in replication
 6. **SQL Queries** - Vector search only
@@ -423,15 +451,20 @@ col.preload()
 
 - [x] Core vector storage with ACID metadata
 - [x] Python bindings (PyO3 + maturin)
+- [x] Mobile bindings (UniFFI for iOS/Android)
 - [x] HNSW approximate search
 - [x] Parallel index construction
 - [x] Incremental index updates
 - [x] TTL / memory decay
 - [x] Metadata filtering
+- [x] Filter operators (`$gt`, `$lt`, `$in`, `$nin`, `$ne`)
 - [x] Product quantization
-- [ ] Filter operators (`$gt`, `$lt`, `$in`)
+- [x] Export/import for backup
+- [ ] JavaScript/WASM bindings
+- [ ] CLI tool
+- [ ] HTTP server
 - [ ] Secondary indexes on metadata
-- [ ] Export/import for backup
+- [ ] LangChain/LlamaIndex integration
 
 ---
 
