@@ -69,12 +69,6 @@ impl FieldCondition {
         }
     }
 
-    /// Add another operator to this condition (AND semantics).
-    pub fn and(mut self, operator: Operator) -> Self {
-        self.operators.push(operator);
-        self
-    }
-
     /// Check if the condition matches the given metadata value.
     pub fn matches(&self, metadata: &JsonValue) -> bool {
         let actual = match metadata.get(&self.field) {
