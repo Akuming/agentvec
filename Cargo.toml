@@ -4,6 +4,7 @@ members = [
     "agentvec",
     "agentvec-python",
     "agentvec-mobile",
+    "agentvec-js",
 ]
 
 [workspace.package]
