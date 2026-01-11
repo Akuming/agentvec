@@ -1,0 +1,20 @@
+[package]
+name = "agentvec-cli"
+description = "Command-line interface for AgentVec vector database"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[[bin]]
+name = "agentvec"
+path = "src/main.rs"
+
+[dependencies]
+agentvec = { path = "../agentvec" }
+clap = { version = "4.4", features = ["derive"] }
+serde_json = { workspace = true }
+colored = "2.1"
+comfy-table = "7.1"
+anyhow = "1.0"
