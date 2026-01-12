@@ -1,0 +1,33 @@
+[package]
+name = "agentvec-server"
+description = "HTTP server for AgentVec vector database"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[[bin]]
+name = "agentvec-server"
+path = "src/main.rs"
+
+[lib]
+name = "agentvec_server"
+path = "src/lib.rs"
+
+[dependencies]
+agentvec = { path = "../agentvec" }
+axum = { version = "0.7", features = ["macros"] }
+tokio = { version = "1.0", features = ["full", "signal"] }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tower = { version = "0.5", features = ["util"] }
+tower-http = { version = "0.6", features = ["cors", "trace", "timeout"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+clap = { version = "4.4", features = ["derive", "env"] }
+thiserror = { workspace = true }
+anyhow = "1.0"
+
+[dev-dependencies]
+tempfile = { workspace = true }

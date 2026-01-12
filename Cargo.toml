@@ -6,6 +6,7 @@ members = [
     "agentvec-mobile",
     "agentvec-js",
     "agentvec-cli",
+    "agentvec-server",
 ]
 
 [workspace.package]
