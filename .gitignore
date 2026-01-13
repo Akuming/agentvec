@@ -76,6 +76,7 @@ credentials.json
 
 # Claude Code
 .claude/
+tmpclaude-*/
 
 # Development docs (not for public repo)
 AGENTVEC_PRD*.md
@@ -85,6 +86,7 @@ DIAGNOSE_BUILD.md
 TASKLIST.md
 PUBLISHING_TO_CRATES.md
 AGENTVEC_TECHNICAL_SUMMARY.md
+AGENTVEC_STRATEGY*.md
 
 # Test scripts
 test_python.py
