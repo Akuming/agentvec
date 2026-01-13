@@ -3,6 +3,10 @@ resolver = "2"
 members = [
     "agentvec",
     "agentvec-python",
+    "agentvec-mobile",
+    "agentvec-js",
+    "agentvec-cli",
+    "agentvec-server",
 ]
 
 [workspace.package]

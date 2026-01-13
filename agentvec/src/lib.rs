@@ -58,6 +58,7 @@ pub use error::{AgentVecError, Result};
 pub use collection::{Collection, CompactStats, WriteConfig};
 pub use filter::Filter;
 pub use search::SearchResult;
+pub use search::FullRecord;
 pub use search::HnswConfig;
 pub use recovery::RecoveryStats;
 pub use export::{ExportHeader, ExportRecord, ImportStats};

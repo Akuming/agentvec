@@ -50,6 +50,33 @@ impl SearchResult {
     }
 }
 
+/// A full record with its vector data.
+///
+/// Use this when you need to retrieve the actual vector values,
+/// not just metadata and ID.
+#[derive(Debug, Clone)]
+pub struct FullRecord {
+    /// Record ID.
+    pub id: String,
+
+    /// The vector data.
+    pub vector: Vec<f32>,
+
+    /// Record metadata.
+    pub metadata: JsonValue,
+}
+
+impl FullRecord {
+    /// Create a new full record.
+    pub fn new(id: impl Into<String>, vector: Vec<f32>, metadata: JsonValue) -> Self {
+        Self {
+            id: id.into(),
+            vector,
+            metadata,
+        }
+    }
+}
+
 /// Helper for maintaining top-k results.
 #[derive(Debug)]
 pub struct TopK {
