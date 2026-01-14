@@ -1,0 +1,36 @@
+{
+  "name": "agentvec",
+  "version": "0.2.0",
+  "description": "A lightweight, serverless vector database for AI agent memory",
+  "main": "agentvec.js",
+  "types": "agentvec.d.ts",
+  "files": [
+    "agentvec_bg.wasm",
+    "agentvec_bg.wasm.d.ts",
+    "agentvec.js",
+    "agentvec.d.ts"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Akuming/agentvec"
+  },
+  "keywords": [
+    "vector",
+    "database",
+    "embedding",
+    "ai",
+    "agent",
+    "memory",
+    "wasm",
+    "webassembly"
+  ],
+  "author": "AgentVec Contributors",
+  "license": "MIT OR Apache-2.0",
+  "bugs": {
+    "url": "https://github.com/Akuming/agentvec/issues"
+  },
+  "homepage": "https://github.com/Akuming/agentvec#readme",
+  "engines": {
+    "node": ">=16.0.0"
+  }
+}

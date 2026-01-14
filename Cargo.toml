@@ -3,11 +3,13 @@ resolver = "2"
 members = [
     "agentvec",
     "agentvec-python",
-    "agentvec-mobile",
-    "agentvec-js",
     "agentvec-cli",
-    "agentvec-server",
 ]
+
+# Deprioritized crates moved to wip/ directory:
+# - agentvec-js (needs OPFS for browser persistence)
+# - agentvec-mobile (no demand signal yet)
+# - agentvec-server (contradicts embedded positioning)
 
 [workspace.package]
 version = "0.2.0"

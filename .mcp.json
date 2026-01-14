@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "memory": {
+      "command": "python",
+      "args": ["-m", "agentvec_mcp.server"],
+      "env": {
+        "AGENTVEC_MEMORY_PATH": "C:/Users/hp/Documents/rust_db/.agentvec-memory"
+      }
+    }
+  }
+}
