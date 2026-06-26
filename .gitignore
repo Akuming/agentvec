@@ -78,6 +78,9 @@ credentials.json
 .claude/
 tmpclaude-*/
 
+# Local MCP config — contains machine-specific absolute paths. Use .mcp.json.example
+.mcp.json
+
 # Development docs (not for public repo)
 AGENTVEC_PRD*.md
 agentvec-prd*.docx
