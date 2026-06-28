@@ -67,7 +67,7 @@ agentvec = "0.1"
 
 ```bash
 # Clone the repository
-git clone https://github.com/user/agentvec
+git clone https://github.com/Akuming/agentvec
 cd agentvec
 
 # Build Rust library

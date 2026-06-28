@@ -12,11 +12,11 @@ members = [
 # - agentvec-server (contradicts embedded positioning)
 
 [workspace.package]
-version = "0.2.0"
+version = "0.2.1"
 edition = "2021"
 rust-version = "1.70"
 license = "MIT OR Apache-2.0"
-repository = "https://github.com/user/agentvec"
+repository = "https://github.com/Akuming/agentvec"
 keywords = ["vector", "database", "embedding", "ai", "agent"]
 categories = ["database", "data-structures"]
 

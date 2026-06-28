@@ -4,8 +4,10 @@ build-backend = "maturin"
 
 [project]
 name = "agentvec"
-version = "0.2.0"
-description = "A lightweight, serverless vector database for AI agent memory"
+version = "0.2.1"
+description = "Embedded, serverless vector database for mutable AI agent memory — pure Rust, with native TTL, in-place upserts, and incremental HNSW search"
+readme = "README.md"
+authors = [{ name = "Akuming", email = "akwasiakumingamoah@gmail.com" }]
 license = { text = "MIT OR Apache-2.0" }
 requires-python = ">=3.8"
 classifiers = [
@@ -27,6 +29,7 @@ classifiers = [
 keywords = ["vector", "database", "embedding", "ai", "agent", "memory"]
 
 [project.urls]
+Homepage = "https://github.com/Akuming/agentvec"
 Repository = "https://github.com/Akuming/agentvec"
 Documentation = "https://github.com/Akuming/agentvec#readme"
 Issues = "https://github.com/Akuming/agentvec/issues"

@@ -5,12 +5,62 @@
 
 use std::sync::Arc;
 
+use numpy::{PyArray1, PyArray2, PyArrayMethods};
 use pyo3::exceptions::{PyIOError, PyKeyError, PyValueError};
 use pyo3::prelude::*;
-use pyo3::types::PyDict;
+use pyo3::types::{PyAny, PyDict};
 use serde_json::Value as JsonValue;
 
 use ::agentvec::{AgentVec, Collection, CompactStats, Filter, Metric, RecoveryStats, SearchResult};
+
+/// Extract a 1-D `f32` vector from a Python object.
+///
+/// Accepts, in order of preference:
+/// 1. A contiguous NumPy `float32` array — copied with a single `memcpy`.
+/// 2. A contiguous NumPy `float64` array — copied and downcast to `f32`.
+/// 3. Any other Python sequence (e.g. a `list`) — element-by-element extraction.
+///
+/// Passing NumPy `float32` arrays (what every embedding model produces) hits the
+/// fast path and avoids the costly per-element conversion that lists require.
+fn extract_vec_f32(obj: &Bound<'_, PyAny>) -> PyResult<Vec<f32>> {
+    if let Ok(arr) = obj.downcast::<PyArray1<f32>>() {
+        let ro = arr.readonly();
+        if let Ok(slice) = ro.as_slice() {
+            return Ok(slice.to_vec());
+        }
+    }
+    if let Ok(arr) = obj.downcast::<PyArray1<f64>>() {
+        let ro = arr.readonly();
+        if let Ok(slice) = ro.as_slice() {
+            return Ok(slice.iter().map(|&x| x as f32).collect());
+        }
+    }
+    // Fallback: lists, tuples, or non-contiguous arrays.
+    obj.extract::<Vec<f32>>()
+}
+
+/// Extract a batch of vectors from a Python object.
+///
+/// A 2-D NumPy array (shape `[n, dim]`) is the fast path — each row becomes one
+/// vector. Otherwise the object is treated as a sequence of vectors, each parsed
+/// via [`extract_vec_f32`] (so a list of lists or a list of 1-D arrays works).
+fn extract_batch_f32(obj: &Bound<'_, PyAny>) -> PyResult<Vec<Vec<f32>>> {
+    if let Ok(arr) = obj.downcast::<PyArray2<f32>>() {
+        let ro = arr.readonly();
+        return Ok(ro.as_array().rows().into_iter().map(|r| r.to_vec()).collect());
+    }
+    if let Ok(arr) = obj.downcast::<PyArray2<f64>>() {
+        let ro = arr.readonly();
+        return Ok(ro
+            .as_array()
+            .rows()
+            .into_iter()
+            .map(|r| r.iter().map(|&x| x as f32).collect())
+            .collect());
+    }
+    let items: Vec<Bound<'_, PyAny>> = obj.extract()?;
+    items.iter().map(extract_vec_f32).collect()
+}
 
 // ============ Helper Functions ============
 
@@ -230,7 +280,7 @@ impl PyCollection {
     /// Add a vector to the collection.
     ///
     /// Args:
-    ///     vector: The vector as a list of floats.
+    ///     vector: The vector as a NumPy float32 array (fast path) or a list of floats.
     ///     metadata: Associated metadata as a dict.
     ///     id: Optional custom ID (auto-generated if None).
     ///     ttl: Optional time-to-live in seconds.
@@ -241,14 +291,17 @@ impl PyCollection {
     fn add(
         &self,
         py: Python<'_>,
-        vector: Vec<f32>,
+        vector: &Bound<'_, PyAny>,
         metadata: &Bound<'_, PyDict>,
         id: Option<&str>,
         ttl: Option<u64>,
     ) -> PyResult<String> {
+        let vector = extract_vec_f32(vector)?;
         let meta = pydict_to_json(py, metadata)?;
-        self.inner
-            .add(&vector, meta, id, ttl)
+        let id = id.map(String::from);
+        let inner = Arc::clone(&self.inner);
+        // Release the GIL for the actual insert so other Python threads can run.
+        py.allow_threads(move || inner.add(&vector, meta, id.as_deref(), ttl))
             .map_err(|e| PyValueError::new_err(e.to_string()))
     }
 
@@ -258,7 +311,7 @@ impl PyCollection {
     ///
     /// Args:
     ///     id: The record ID.
-    ///     vector: The vector as a list of floats.
+    ///     vector: The vector as a NumPy float32 array (fast path) or a list of floats.
     ///     metadata: Associated metadata as a dict.
     ///     ttl: Optional time-to-live in seconds.
     #[pyo3(signature = (id, vector, metadata, ttl=None))]
@@ -266,20 +319,23 @@ impl PyCollection {
         &self,
         py: Python<'_>,
         id: &str,
-        vector: Vec<f32>,
+        vector: &Bound<'_, PyAny>,
         metadata: &Bound<'_, PyDict>,
         ttl: Option<u64>,
     ) -> PyResult<()> {
+        let vector = extract_vec_f32(vector)?;
         let meta = pydict_to_json(py, metadata)?;
-        self.inner
-            .upsert(id, &vector, meta, ttl)
+        let id = id.to_string();
+        let inner = Arc::clone(&self.inner);
+        py.allow_threads(move || inner.upsert(&id, &vector, meta, ttl))
             .map_err(|e| PyValueError::new_err(e.to_string()))
     }
 
     /// Batch add vectors (10-100x faster than looped add).
     ///
     /// Args:
-    ///     vectors: List of vectors (each a list of floats).
+    ///     vectors: A 2-D NumPy float32 array [n, dim] (fast path), or a list of vectors
+///         (each a NumPy array or list of floats).
     ///     metadatas: List of metadata dicts.
     ///     ids: Optional list of custom IDs.
     ///     ttls: Optional list of TTLs in seconds.
@@ -290,37 +346,38 @@ impl PyCollection {
     fn add_batch(
         &self,
         py: Python<'_>,
-        vectors: Vec<Vec<f32>>,
+        vectors: &Bound<'_, PyAny>,
         metadatas: Vec<Bound<'_, PyDict>>,
         ids: Option<Vec<String>>,
         ttls: Option<Vec<Option<u64>>>,
     ) -> PyResult<Vec<String>> {
-        // Convert metadatas
+        // Convert Python inputs to owned Rust data while we still hold the GIL.
+        let vectors = extract_batch_f32(vectors)?;
         let metas: Vec<JsonValue> = metadatas
             .iter()
             .map(|d| pydict_to_json(py, d))
             .collect::<PyResult<Vec<_>>>()?;
 
-        // Convert vectors to slices
-        let vec_refs: Vec<&[f32]> = vectors.iter().map(|v| v.as_slice()).collect();
-
-        // Convert ids to &str slices
-        let id_strs: Option<Vec<&str>> = ids.as_ref().map(|v| v.iter().map(|s| s.as_str()).collect());
-
-        self.inner
-            .add_batch(
+        let inner = Arc::clone(&self.inner);
+        // Release the GIL for the bulk insert (the expensive part).
+        py.allow_threads(move || {
+            let vec_refs: Vec<&[f32]> = vectors.iter().map(|v| v.as_slice()).collect();
+            let id_strs: Option<Vec<&str>> =
+                ids.as_ref().map(|v| v.iter().map(|s| s.as_str()).collect());
+            inner.add_batch(
                 &vec_refs,
                 &metas,
                 id_strs.as_ref().map(|v| v.as_slice()),
                 ttls.as_ref().map(|v| v.as_slice()),
             )
-            .map_err(|e| PyValueError::new_err(e.to_string()))
+        })
+        .map_err(|e| PyValueError::new_err(e.to_string()))
     }
 
     /// Search for nearest neighbors.
     ///
     /// Args:
-    ///     vector: The query vector.
+    ///     vector: The query vector as a NumPy float32 array (fast path) or a list of floats.
     ///     k: Number of results to return.
     ///     where_: Optional metadata filter as a dict.
     ///
@@ -331,10 +388,11 @@ impl PyCollection {
     fn search_py(
         &self,
         py: Python<'_>,
-        vector: Vec<f32>,
+        vector: &Bound<'_, PyAny>,
         k: usize,
         where_: Option<&Bound<'_, PyDict>>,
     ) -> PyResult<Vec<PySearchResult>> {
+        let vector = extract_vec_f32(vector)?;
         let filter = match where_ {
             Some(dict) => {
                 let json = pydict_to_json(py, dict)?;
@@ -343,10 +401,12 @@ impl PyCollection {
             None => None,
         };
 
-        self.inner
-            .search(&vector, k, filter)
-            .map(|results| results.into_iter().map(PySearchResult::from).collect())
-            .map_err(|e| PyValueError::new_err(e.to_string()))
+        let inner = Arc::clone(&self.inner);
+        // Release the GIL during the search itself.
+        let results = py
+            .allow_threads(move || inner.search(&vector, k, filter))
+            .map_err(|e| PyValueError::new_err(e.to_string()))?;
+        Ok(results.into_iter().map(PySearchResult::from).collect())
     }
 
     /// Get a record by ID.

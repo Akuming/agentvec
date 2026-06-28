@@ -50,10 +50,10 @@ dev = [
 agentvec-memory = "agentvec_memory.cli:main"
 
 [project.urls]
-Homepage = "https://github.com/user/agentvec"
-Repository = "https://github.com/user/agentvec"
-Documentation = "https://github.com/user/agentvec#readme"
-Issues = "https://github.com/user/agentvec/issues"
+Homepage = "https://github.com/Akuming/agentvec"
+Repository = "https://github.com/Akuming/agentvec"
+Documentation = "https://github.com/Akuming/agentvec#readme"
+Issues = "https://github.com/Akuming/agentvec/issues"
 
 [tool.setuptools.packages.find]
 where = ["."]

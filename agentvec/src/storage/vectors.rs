@@ -30,7 +30,17 @@ use crate::error::{AgentVecError, Result};
 const MAGIC: u32 = 0x4156_4543;
 
 /// Current file format version.
-const VERSION: u16 = 1;
+///
+/// Version 1 used an FNV-1a header checksum; version 2 uses CRC32. Both are
+/// still accepted on open (see [`VERSION_V1`]) so databases created by older
+/// releases continue to load — only newly created files are written as v2.
+const VERSION: u16 = 2;
+
+/// Legacy file format version (FNV-1a header checksum).
+///
+/// Retained for backward compatibility: files written by AgentVec <= 0.2.0
+/// carry this version and must still be readable.
+const VERSION_V1: u16 = 1;
 
 /// Header size in bytes (fixed at 64 for alignment).
 const HEADER_SIZE: usize = 64;
@@ -51,6 +61,10 @@ const TOMBSTONE_MARKER: u32 = 0x7FC0_0000;
 /// Provides fixed-slot allocation for vectors with O(1) read/write.
 /// Vectors are stored contiguously for cache-friendly sequential scans.
 pub struct VectorStorage {
+    /// On-disk format version of this file (see [`VERSION`] / [`VERSION_V1`]).
+    /// Determines which header-checksum algorithm is used for writes.
+    version: u16,
+
     /// The underlying file.
     file: File,
 
@@ -125,6 +139,7 @@ impl VectorStorage {
         Self::write_header(&mut mmap, &header)?;
 
         Ok(Self {
+            version: VERSION,
             file,
             mmap,
             dimensions,
@@ -168,10 +183,10 @@ impl VectorStorage {
             )));
         }
 
-        if header.version != VERSION {
+        if header.version != VERSION && header.version != VERSION_V1 {
             return Err(AgentVecError::Corruption(format!(
-                "Unsupported version: expected {}, got {}",
-                VERSION, header.version
+                "Unsupported version: expected {} or {}, got {}",
+                VERSION, VERSION_V1, header.version
             )));
         }
 
@@ -181,6 +196,7 @@ impl VectorStorage {
         let slot_size = dimensions * std::mem::size_of::<f32>();
 
         Ok(Self {
+            version: header.version,
             file,
             mmap,
             dimensions,
@@ -455,8 +471,9 @@ impl VectorStorage {
         buf[6..10].copy_from_slice(&header.dimensions.to_le_bytes());
         buf[10..18].copy_from_slice(&header.slot_count.to_le_bytes());
 
-        // Compute checksum over the data fields (not including checksum itself)
-        let checksum = Self::compute_checksum(&buf[0..18]);
+        // Compute checksum over the data fields (not including checksum itself),
+        // using the algorithm that matches this file's format version.
+        let checksum = Self::compute_checksum(&buf[0..18], header.version);
         buf[18..22].copy_from_slice(&checksum.to_le_bytes());
 
         // Rest is reserved (zeros)
@@ -477,8 +494,8 @@ impl VectorStorage {
         let slot_count = u64::from_le_bytes(mmap[10..18].try_into().unwrap());
         let checksum = u32::from_le_bytes(mmap[18..22].try_into().unwrap());
 
-        // Verify checksum
-        let computed = Self::compute_checksum(&mmap[0..18]);
+        // Verify checksum using the algorithm for this file's version.
+        let computed = Self::compute_checksum(&mmap[0..18], version);
         if computed != checksum {
             return Err(AgentVecError::Corruption(format!(
                 "Header checksum mismatch: expected 0x{:08X}, got 0x{:08X}",
@@ -500,19 +517,32 @@ impl VectorStorage {
         // Write slot count
         self.mmap[10..18].copy_from_slice(&self.slot_count.to_le_bytes());
 
-        // Recompute and write checksum
-        let checksum = Self::compute_checksum(&self.mmap[0..18]);
+        // Recompute and write checksum using this file's checksum algorithm.
+        let checksum = Self::compute_checksum(&self.mmap[0..18], self.version);
         self.mmap[18..22].copy_from_slice(&checksum.to_le_bytes());
 
         Ok(())
     }
 
-    /// Simple checksum function (CRC32 would be better, but this is simpler).
-    fn compute_checksum(data: &[u8]) -> u32 {
-        // Simple FNV-1a hash as checksum
+    /// Compute the header checksum for the given format version.
+    ///
+    /// Version 2 (current) uses CRC32, which has stronger error-detection
+    /// guarantees than the FNV-1a hash used by version 1. Version 1 is still
+    /// computed with FNV-1a so that databases created by older releases
+    /// validate correctly on open.
+    fn compute_checksum(data: &[u8], version: u16) -> u32 {
+        if version >= VERSION {
+            crc32fast::hash(data)
+        } else {
+            Self::fnv1a_checksum(data)
+        }
+    }
+
+    /// Legacy FNV-1a header checksum (format version 1).
+    fn fnv1a_checksum(data: &[u8]) -> u32 {
         let mut hash: u32 = 0x811c_9dc5;
         for byte in data {
-            hash ^= *byte as u32;
+            hash ^= u32::from(*byte);
             hash = hash.wrapping_mul(0x0100_0193);
         }
         hash
@@ -564,6 +594,65 @@ mod tests {
             assert_eq!(storage.dimensions(), 384);
             assert_eq!(storage.slot_count(), 0);
         }
+    }
+
+    #[test]
+    fn test_new_files_use_version_2_crc32() {
+        let dir = tempdir().unwrap();
+        let path = dir.path().join("vectors.bin");
+
+        let storage = VectorStorage::create(&path, 4).unwrap();
+        assert_eq!(storage.version, VERSION);
+        assert_eq!(VERSION, 2);
+
+        // The on-disk header must carry version 2 and a CRC32 checksum.
+        let header = VectorStorage::read_header(&storage.mmap).unwrap();
+        assert_eq!(header.version, 2);
+        let expected = crc32fast::hash(&storage.mmap[0..18]);
+        assert_eq!(header.checksum, expected);
+    }
+
+    /// Build a minimal valid version-1 (FNV-1a) header file by hand, exactly as
+    /// AgentVec <= 0.2.0 would have written it, to guard backward compatibility.
+    fn write_legacy_v1_file(path: &std::path::Path, dimensions: u32) {
+        let mut buf = vec![0u8; HEADER_SIZE];
+        buf[0..4].copy_from_slice(&MAGIC.to_le_bytes());
+        buf[4..6].copy_from_slice(&VERSION_V1.to_le_bytes());
+        buf[6..10].copy_from_slice(&dimensions.to_le_bytes());
+        buf[10..18].copy_from_slice(&0u64.to_le_bytes()); // slot_count = 0
+        let checksum = VectorStorage::fnv1a_checksum(&buf[0..18]);
+        buf[18..22].copy_from_slice(&checksum.to_le_bytes());
+        // Size the file to hold the header plus initial slot capacity.
+        let total = HEADER_SIZE + (INITIAL_CAPACITY as usize) * (dimensions as usize) * 4;
+        buf.resize(total, 0);
+        std::fs::write(path, &buf).unwrap();
+    }
+
+    #[test]
+    fn test_legacy_v1_file_still_opens() {
+        let dir = tempdir().unwrap();
+        let path = dir.path().join("vectors.bin");
+
+        // A database written by an older release must still load (no data loss
+        // when upgrading from the FNV-1a checksum to CRC32).
+        write_legacy_v1_file(&path, 3);
+
+        let mut storage = VectorStorage::open(&path).unwrap();
+        assert_eq!(storage.version, VERSION_V1, "legacy version preserved on open");
+        assert_eq!(storage.dimensions(), 3);
+        assert_eq!(storage.slot_count(), 0);
+
+        // Writing to a v1 file must keep using the v1 checksum so it can be
+        // reopened — we don't silently migrate the on-disk format.
+        let slot = storage.allocate_slot().unwrap();
+        storage.write_slot(slot, &[1.0, 2.0, 3.0]).unwrap();
+        storage.sync().unwrap();
+        drop(storage);
+
+        let storage = VectorStorage::open(&path).unwrap();
+        assert_eq!(storage.version, VERSION_V1);
+        assert_eq!(storage.slot_count(), 1);
+        assert_eq!(storage.read_slot(0).unwrap(), vec![1.0, 2.0, 3.0]);
     }
 
     #[test]
