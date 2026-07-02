@@ -473,6 +473,44 @@ class TestCreateEmbedder:
             create_embedder(12345)
 
 
+class TestForgetById:
+    """Regression tests for forget_by_id against real AgentVec storage.
+
+    These use a deterministic MockEmbedder (no model download) but real
+    agentvec storage, because the bug they guard against only appears with
+    the real delete() semantics and cannot be reproduced with mocks.
+    """
+
+    def _memory(self, tmpdir, dim=32):
+        return ProjectMemory(tmpdir, embedder=MockEmbedder(dimension=dim), dimension=dim)
+
+    def test_forget_by_id_deletes_from_non_first_tier(self):
+        # Regression: a memory stored in a tier other than the first-iterated
+        # one must still be deleted. Previously forget_by_id stopped at the
+        # first tier (whose delete() returns False, not an exception) and
+        # reported success without removing anything.
+        pytest.importorskip("agentvec")
+        with tempfile.TemporaryDirectory() as tmpdir:
+            mem = self._memory(tmpdir)
+            uid = mem.remember("user fact", tier=MemoryTier.USER)  # USER is last in enum order
+            mem.remember("project fact", tier=MemoryTier.PROJECT)
+            assert mem.get_stats()["total_memories"] == 2
+
+            assert mem.forget_by_id(uid) is True
+            stats = mem.get_stats()
+            assert stats["tiers"]["user"] == 0, "memory was not actually deleted"
+            assert stats["total_memories"] == 1
+            assert not mem.recall("user fact", k=5)
+
+    def test_forget_by_id_missing_returns_false(self):
+        pytest.importorskip("agentvec")
+        with tempfile.TemporaryDirectory() as tmpdir:
+            mem = self._memory(tmpdir)
+            mem.remember("something", tier=MemoryTier.PROJECT)
+            assert mem.forget_by_id("does-not-exist") is False
+            assert mem.get_stats()["total_memories"] == 1
+
+
 # --- Integration Tests (require real dependencies) ---
 
 @pytest.mark.integration

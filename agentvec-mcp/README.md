@@ -6,14 +6,12 @@ This MCP server exposes memory tools that allow AI agents (like Claude) to remem
 
 ## Installation
 
-```bash
-pip install agentvec-mcp
-```
-
-Or for development:
+> **Note:** `agentvec-mcp` is not yet published to PyPI. Install from source for now
+> (a `pip install agentvec-mcp` release is planned).
 
 ```bash
-cd agentvec-mcp
+git clone https://github.com/Akuming/agentvec
+cd agentvec/agentvec-mcp
 pip install -e .
 ```
 

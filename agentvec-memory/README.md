@@ -37,14 +37,12 @@ results = memory.recall("where is the API key")
 
 ## Installation
 
-```bash
-pip install agentvec-memory
-```
-
-Or for development:
+> **Note:** `agentvec-memory` is not yet published to PyPI. Install from source for now
+> (a `pip install agentvec-memory` release is planned).
 
 ```bash
-cd agentvec-memory
+git clone https://github.com/Akuming/agentvec
+cd agentvec/agentvec-memory
 pip install -e .
 ```
 
