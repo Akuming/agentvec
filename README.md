@@ -2,6 +2,11 @@
 
 **The SQLite for Mutable Agent Memory**
 
+[![PyPI version](https://img.shields.io/pypi/v/agentvec.svg)](https://pypi.org/project/agentvec/)
+[![Downloads](https://img.shields.io/pypi/dm/agentvec.svg)](https://pypi.org/project/agentvec/)
+[![Python versions](https://img.shields.io/pypi/pyversions/agentvec.svg)](https://pypi.org/project/agentvec/)
+[![License: MIT OR Apache-2.0](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue.svg)](#license)
+
 AgentVec is a lightweight, serverless, embedded vector database written in pure Rust. It's designed for AI agents that need to remember, forget, and update knowledge in real-time.
 
 ```python
