@@ -329,11 +329,15 @@ class ProjectMemory:
         Returns:
             True if removed, False if not found.
         """
+        # collection.delete() returns True only if a record was actually
+        # removed (it returns False for a missing id rather than raising), so we
+        # must check the result — otherwise we'd stop at the first tier and
+        # report success without deleting from the tier that holds the memory.
         for collection in self._collections.values():
             try:
-                collection.delete(memory_id)
-                self._db.sync()
-                return True
+                if collection.delete(memory_id):
+                    self._db.sync()
+                    return True
             except Exception:
                 continue
         return False
