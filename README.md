@@ -65,7 +65,7 @@ pip install agentvec
 
 ```toml
 [dependencies]
-agentvec = "0.1"
+agentvec = "0.2"
 ```
 
 ### Build from Source
